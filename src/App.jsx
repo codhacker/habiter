@@ -999,7 +999,7 @@ const NavButton = ({ active, onClick, icon: Icon, label }) => (
   >
     <Icon size={24} strokeWidth={active ? 2.5 : 2} />
     <span
-      className={`text-[10px] mt-1 font-medium font-display tracking-wide ${active ? "opacity-100" : "opacity-0"}`}
+      className={`text-[15px] mt-1 font-medium font-display tracking-wide opacity-100}`}
     >
       {label}
     </span>
