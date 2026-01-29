@@ -25,6 +25,7 @@ import {
   getDoc,
   orderBy,
   writeBatch,
+  getDocs,
 } from "firebase/firestore";
 import {
   Flame,
@@ -54,6 +55,8 @@ import {
   Bell,
   CalendarDays,
   Repeat,
+  MessageSquare,
+  Send,
 } from "lucide-react";
 
 // --- Firebase Initialization ---
@@ -814,15 +817,27 @@ export default function App() {
                           key={n.id}
                           className="p-3 border-b border-gray-800/50 hover:bg-white/5 flex items-start gap-3 last:border-0"
                         >
-                          <div className="bg-pink-500/10 p-1.5 rounded-full text-pink-500 shrink-0 mt-0.5">
-                            <Zap size={14} className="fill-current" />
+                          <div
+                            className={`${n.type === "message" ? "bg-blue-500/10 text-blue-500" : "bg-pink-500/10 text-pink-500"} p-1.5 rounded-full shrink-0 mt-0.5`}
+                          >
+                            {n.type === "message" ? (
+                              <MessageSquare size={14} />
+                            ) : (
+                              <Zap size={14} className="fill-current" />
+                            )}
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm text-gray-200 font-sans">
                               <span className="font-bold text-white font-display">
                                 {n.from}
                               </span>{" "}
-                              cheered you!
+                              {n.type === "message" ? (
+                                <span className="text-gray-300">
+                                  : {n.text}
+                                </span>
+                              ) : (
+                                "cheered you!"
+                              )}
                             </p>
                             <p className="text-[10px] text-gray-500 mt-1">
                               {new Date(n.timestamp).toLocaleTimeString([], {
@@ -872,6 +887,9 @@ export default function App() {
         )}
         {activeTab === "squad" && (
           <SquadView user={user} appId={appId} showToast={showToast} />
+        )}
+        {activeTab === "chat" && (
+          <ChatView user={user} appId={appId} showToast={showToast} />
         )}
         {activeTab === "leaderboard" && (
           <LeaderboardView
@@ -926,6 +944,12 @@ export default function App() {
             onClick={() => setActiveTab("squad")}
             icon={Users}
             label="Squad"
+          />
+          <NavButton
+            active={activeTab === "chat"}
+            onClick={() => setActiveTab("chat")}
+            icon={MessageSquare}
+            label="Chat"
           />
           <NavButton
             active={activeTab === "leaderboard"}
@@ -995,11 +1019,11 @@ const UserProfileBadge = ({ user, appId }) => {
 const NavButton = ({ active, onClick, icon: Icon, label }) => (
   <button
     onClick={onClick}
-    className={`flex flex-col items-center p-2 rounded-xl transition-all w-16 sm:w-20 ${active ? "text-orange-500" : "text-gray-500 hover:text-gray-300"}`}
+    className={`flex flex-col items-center p-2 rounded-xl transition-all w-14 sm:w-20 ${active ? "text-orange-500" : "text-gray-500 hover:text-gray-300"}`}
   >
     <Icon size={24} strokeWidth={active ? 2.5 : 2} />
     <span
-      className={`text-[15px] mt-1 font-medium font-display tracking-wide opacity-100}`}
+      className={`text-[13px] mt-1 font-medium font-display tracking-wide opacity-100"`}
     >
       {label}
     </span>
@@ -1279,6 +1303,190 @@ const UserProfileDetails = ({ targetUid, appId, showToast, isOwnProfile }) => {
           ))}
         </div>
       </div>
+    </div>
+  );
+};
+
+// --- Chat View ---
+const ChatView = ({ user, appId }) => {
+  const [messages, setMessages] = useState([]);
+  const [newMessage, setNewMessage] = useState("");
+  const messagesEndRef = useRef(null);
+
+  // Cleanup old messages on load
+  useEffect(() => {
+    const cleanupOldMessages = async () => {
+      const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const q = query(
+        collection(db, "artifacts", appId, "public", "data", "chat"),
+        where("timestamp", "<", cutoff),
+      );
+      try {
+        const snapshot = await getDocs(q);
+        if (!snapshot.empty) {
+          const batch = writeBatch(db);
+          snapshot.docs.forEach((doc) => batch.delete(doc.ref));
+          await batch.commit();
+        }
+      } catch (e) {
+        console.error("Cleanup error", e);
+      }
+    };
+    cleanupOldMessages();
+  }, [appId]);
+
+  // Real-time messages listener
+  useEffect(() => {
+    const q = query(
+      collection(db, "artifacts", appId, "public", "data", "chat"),
+      orderBy("timestamp", "asc"),
+    );
+    const unsub = onSnapshot(q, (snapshot) => {
+      setMessages(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+    });
+    return () => unsub();
+  }, [appId]);
+
+  // Auto-scroll to bottom
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const handleSend = async (e) => {
+    e.preventDefault();
+    if (!newMessage.trim()) return;
+
+    const messageText = newMessage.trim();
+    setNewMessage("");
+
+    try {
+      // 1. Add message to chat collection
+      await addDoc(
+        collection(db, "artifacts", appId, "public", "data", "chat"),
+        {
+          text: messageText,
+          uid: user.uid,
+          displayName: user.displayName || "Anonymous",
+          timestamp: new Date().toISOString(),
+        },
+      );
+
+      // 2. Broadcast notification to all other users
+      const usersRef = collection(
+        db,
+        "artifacts",
+        appId,
+        "public",
+        "data",
+        "users",
+      );
+      const userSnapshot = await getDocs(usersRef);
+
+      const batch = writeBatch(db);
+      let batchCount = 0;
+
+      userSnapshot.docs.forEach((docSnap) => {
+        const targetUser = docSnap.data();
+        if (targetUser.uid !== user.uid) {
+          const ref = doc(
+            collection(
+              db,
+              "artifacts",
+              appId,
+              "public",
+              "data",
+              "users",
+              targetUser.uid,
+              "notifications",
+            ),
+          );
+          batch.set(ref, {
+            type: "message",
+            from: user.displayName || "Someone",
+            fromUid: user.uid,
+            text:
+              messageText.substring(0, 30) +
+              (messageText.length > 30 ? "..." : ""),
+            timestamp: new Date().toISOString(),
+          });
+          batchCount++;
+        }
+      });
+
+      if (batchCount > 0) {
+        await batch.commit();
+      }
+    } catch (err) {
+      console.error("Send error", err);
+    }
+  };
+
+  return (
+    <div className="flex flex-col h-[calc(100vh-180px)] bg-gray-900 rounded-3xl overflow-hidden border border-gray-800 shadow-xl">
+      <div className="bg-gray-800 p-4 border-b border-gray-700 flex items-center gap-3">
+        <MessageSquare className="text-orange-500" size={20} />
+        <h3 className="font-bold text-white font-display">Squad Chat</h3>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {messages.length === 0 ? (
+          <div className="text-center text-gray-500 text-sm py-10">
+            No messages yet. Start the conversation!
+          </div>
+        ) : (
+          messages.map((msg) => {
+            const isMe = msg.uid === user.uid;
+            return (
+              <div
+                key={msg.id}
+                className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}
+              >
+                <div
+                  className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm ${
+                    isMe
+                      ? "bg-orange-600 text-white rounded-br-none"
+                      : "bg-gray-800 text-gray-200 rounded-bl-none"
+                  }`}
+                >
+                  {!isMe && (
+                    <p className="text-[10px] text-orange-400 font-bold mb-1 uppercase tracking-wide">
+                      {msg.displayName}
+                    </p>
+                  )}
+                  {msg.text}
+                </div>
+                <span className="text-[10px] text-gray-600 mt-1 px-1">
+                  {new Date(msg.timestamp).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </span>
+              </div>
+            );
+          })
+        )}
+        <div ref={messagesEndRef} />
+      </div>
+
+      <form
+        onSubmit={handleSend}
+        className="p-3 bg-gray-800 border-t border-gray-700 flex gap-2"
+      >
+        <input
+          type="text"
+          value={newMessage}
+          onChange={(e) => setNewMessage(e.target.value)}
+          placeholder="Type a message..."
+          className="flex-1 bg-gray-900 border border-gray-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-orange-500 text-sm"
+        />
+        <button
+          type="submit"
+          disabled={!newMessage.trim()}
+          className="bg-orange-600 hover:bg-orange-500 disabled:opacity-50 disabled:hover:bg-orange-600 text-white p-2.5 rounded-xl transition-colors"
+        >
+          <Send size={20} />
+        </button>
+      </form>
     </div>
   );
 };
