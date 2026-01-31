@@ -82,7 +82,12 @@ const getAppId = () => {
 
 // Get current date in IST (Indian Standard Time) YYYY-MM-DD
 const getTodayDate = () => {
-  return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  // return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  // Get current date in IST (Indian Standard Time) YYYY-MM-DD
+  // Adjusted to reset at 3 AM instead of 12 AM
+  const d = new Date();
+  d.setHours(d.getHours() - 3); // Subtract 3 hours 
+  return d.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
 };
 
 // Get ISO week number for Weekly streak calculation
