@@ -57,6 +57,7 @@ import {
   Repeat,
   MessageSquare,
   Send,
+  Heart,
 } from "lucide-react";
 
 // --- Firebase Initialization ---
@@ -2100,7 +2101,7 @@ const SquadView = ({ user, appId, showToast }) => {
                   className="bg-pink-500/10 hover:bg-pink-500/20 text-pink-500 p-2.5 rounded-xl transition-colors active:scale-95 border border-pink-500/20"
                   title="Send Cheer"
                 >
-                  <Zap
+                  <Heart
                     size={20}
                     className={friend.cheers > 0 ? "fill-current" : ""}
                   />
