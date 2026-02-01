@@ -829,7 +829,7 @@ export default function App() {
                             {n.type === "message" ? (
                               <MessageSquare size={14} />
                             ) : (
-                              <Zap size={14} className="fill-current" />
+                              <Heart size={14} className="fill-current" />
                             )}
                           </div>
                           <div className="flex-1 min-w-0">
@@ -1006,14 +1006,14 @@ const UserProfileBadge = ({ user, appId }) => {
   return (
     <div className="flex items-center gap-4 bg-white/5 px-3 py-1.5 rounded-full border border-white/5">
       <div className="flex items-center gap-1.5 text-yellow-400">
-        <Coins size={14} className="fill-current" />
+        <Coins size={16} className="fill-current" />
         <span className="font-bold font-mono text-sm font-display">
           {profile.coins || 0}
         </span>
       </div>
       <div className="w-px h-3 bg-white/10"></div>
       <div className="flex items-center gap-1.5 text-pink-400">
-        <MessageCircleHeart size={14} className="fill-current" />
+        <MessageCircleHeart size={18} className="fill-pink-500 text-pink-300" />
         <span className="font-bold font-mono text-sm font-display">
           {profile.cheers || 0}
         </span>
@@ -1702,7 +1702,7 @@ const HabitsView = ({
                       </span>
                     </div>
                     <h3
-                      className={`font-bold text-lg truncate font-display ${isCompleted ? "text-gray-400 line-through decoration-gray-600" : "text-gray-100"}`}
+                      className={`font-bold text-lg break-words whitespace-normal font-display ${isCompleted ? "text-gray-400 line-through decoration-gray-600" : "text-gray-100"}`}
                     >
                       {habit.title}
                     </h3>
