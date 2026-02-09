@@ -1322,7 +1322,7 @@ const ChatView = ({ user, appId }) => {
   // Cleanup old messages on load
   useEffect(() => {
     const cleanupOldMessages = async () => {
-      const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
       const q = query(
         collection(db, "artifacts", appId, "public", "data", "chat"),
         where("timestamp", "<", cutoff),
